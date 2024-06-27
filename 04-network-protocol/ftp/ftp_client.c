@@ -180,9 +180,8 @@ int main()
 unsigned short send_pasv()
 {
     char buf[2048];
-
+    
     send(client, "PASV\r\n", 6, 0);
-
     int ret = recv(client, buf, sizeof(buf), 0);
     if (ret <= 0)
     {

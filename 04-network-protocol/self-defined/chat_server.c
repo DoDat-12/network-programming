@@ -28,7 +28,7 @@ int owner_client;
 
 int main()
 {
-    // Tao socket cho ket noi
+    // create socket
     int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listener == -1)
     {
@@ -36,20 +36,20 @@ int main()
         return 1;
     }
 
-    // Khai bao dia chi server
+    // socket address
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(8000);
 
-    // Gan socket voi cau truc dia chi
+    // binding
     if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)))
     {
         perror("bind() failed");
         return 1;
     }
 
-    // Chuyen socket sang trang thai cho ket noi
+    // waiting for connection
     if (listen(listener, 5))
     {
         perror("listen() failed");
@@ -95,7 +95,7 @@ void *client_proc(void *arg)
     int client = *(int *)arg;
     char buf[256];
 
-    // Nhan du lieu tu client
+    // recv data
     while (1)
     {
         int ret = recv(client, buf, sizeof(buf), 0);
@@ -154,50 +154,50 @@ int process_join(int client, char *buf)
 {
     if (!check_join(client))
     {
-        // Chua dang nhap
+        // not login yet
         char cmd[16], id[32], tmp[32];
         int n = sscanf(buf, "%s %s %s", cmd, id, tmp);
         if (n == 2)
         {
-            // Kiem tra tinh hop le cua id
-            // id chi chua ky tu chu thuong va chu so
+            // check valid
+            // id contains number and normal char
             int k = 0;
             for (; k < strlen(id); k++)
                 if (id[k] < '0' || id[k] > 'z' || (id[k] > '9' && id[k] < 'a'))
                     break;
             if (k < strlen(id))
             {
-                // id chua ky tu khong hop le
+                // not valid
                 char *msg = "201 Invalid nickname\n";
                 send(client, msg, strlen(msg), 0);
             }
             else
             {
-                // Kiem tra id da ton tai chua
+                // check id exists
                 k = 0;
                 for (; k < num_clients; k++)
                     if (strcmp(client_names[k], id) == 0)
                         break;
                 if (k < num_clients)
                 {
-                    // id da ton tai
+                    // id exists
                     char *msg = "200 Nickname in use\n";
                     send(client, msg, strlen(msg), 0);
                 }
                 else
                 {
-                    // id chua ton tai
+                    // id not exists
                     char *msg = "100 OK\n";
                     send(client, msg, strlen(msg), 0);
 
-                    // Chuyen client sang trang thai dang nhap
+                    // turn client to logined
                     client_sockets[num_clients] = client;
                     client_names[num_clients] = malloc(strlen(id) + 1);
                     memcpy(client_names[num_clients], id, strlen(id) + 1);
                     // strcpy(client_names[num_clients], id);
                     num_clients++;
 
-                    // kiem tra neu la nguoi dau tien ket noi thi la chu phong
+                    // first client -> room owner
                     if (owner_client == 0)
                     {
                         owner_client = client;
@@ -205,7 +205,7 @@ int process_join(int client, char *buf)
                         send(client, reponse, strlen(reponse), 0);
                     }
 
-                    // Gui thong diep cho cac client khac
+                    // send to other clients
                     for (int k = 0; k < num_clients; k++)
                         if (client_sockets[k] != client)
                         {
@@ -236,7 +236,7 @@ int process_msg(int client, char *buf)
     if (check_join(client))
     {
         int idx = get_index(client);
-        // Chuyen tiep tin nhan cho cac client da dang nhap khac
+        // send to other clients
         for (int k = 0; k < num_clients; k++)
             if (client_sockets[k] != client)
             {
@@ -265,7 +265,7 @@ int process_pmsg(int client, char *buf)
         char receiver[32];
         sscanf(buf + 5, "%s", receiver);
 
-        // Chuyen tiep tin nhan cho mot client
+        // send to specific client
         int k = 0;
         for (; k < num_clients; k++)
             if (strcmp(client_names[k], receiver) == 0)
@@ -273,7 +273,7 @@ int process_pmsg(int client, char *buf)
 
         if (k < num_clients)
         {
-            // Tim thay nguoi nhan
+            // found that client
             char msg[512];
             sprintf(msg, "PMSG %s %s\n", client_names[idx], buf + strlen(receiver) + 6);
             send(client_sockets[k], msg, strlen(msg), 0);
@@ -283,7 +283,7 @@ int process_pmsg(int client, char *buf)
         }
         else
         {
-            // Khong thay nguoi nhan
+            // not found
             char *msg = "202 Unknown nickname\n";
             send(client, msg, strlen(msg), 0);
         }
@@ -302,7 +302,7 @@ int process_op(int client, char *buf)
     {
         if (client == owner_client)
         {
-            // dung la chu phong
+            // owner
             int idx = get_index(client);
 
             char new_op[32];
