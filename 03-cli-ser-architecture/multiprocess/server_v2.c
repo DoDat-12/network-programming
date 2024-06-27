@@ -1,3 +1,4 @@
+// Using perfork
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,11 +9,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 
-void signalHandler(int signo)
-{
-    pid_t pid = wait(NULL);
-    printf("Child process terminated, pid = %d\n", pid);
-}
+#define PREFORK 8
 
 int main(int argc, char *argv[])
 {
@@ -28,7 +25,7 @@ int main(int argc, char *argv[])
     // binding
     if (bind(listener, (struct sockaddr *)&addr, sizeof(addr)))
     {
-        perror("bind() failed");
+        perror("bind() failed\n");
         return 1;
     }
 
@@ -39,40 +36,29 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // assign eventHandler
-    signal(SIGCHLD, signalHandler);
-
-    while (1)
+    char buf[256];
+    for (int i = 0; i < PREFORK; i++)
     {
-        printf("waiting for connection...\n");
-        int client = accept(listener, NULL, NULL);
-        printf("client %d connected\n", client);
-
-        // child process
-        if (fork() == 0)
+        if (fork() == 0) // child process
         {
-            // close listener in child process
-            close(listener);
-
-            char buf[256];
             while (1)
             {
+                int client = accept(listener, NULL, NULL);
+                printf("client %d connected", client);
+
                 int ret = recv(client, buf, sizeof(buf), 0);
                 if (ret <= 0)
-                    break;
+                    continue;
 
                 buf[ret] = 0;
-                printf("recv: %s", buf);
-            }
-        }
-        else // ok if removing else
-        {
-            char buf[256];
-            while (1)
-            {
-                fgets(buf, sizeof(buf), stdin);
-                send(client, buf, strlen(buf), 0);
+                printf("client %d: %s", client, buf);
+
+                close(client);
             }
         }
     }
+
+    getchar();
+    killpg(0, SIGKILL);
+    return 0;
 }
